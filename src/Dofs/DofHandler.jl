@@ -432,18 +432,16 @@ function _create_sparsity_pattern(dh::AbstractDofHandler, ch#=::Union{Constraint
     resize!(I, cnt)
     resize!(J, cnt)
 
+    K = spzeros!!(Float64, I, J, ndofs(dh), ndofs(dh))
+
     # If ConstraintHandler is given, create the condensation pattern due to affine constraints
     if ch !== nothing
         @assert isclosed(ch)
-
-        V = ones(length(I))
-        K = sparse(I, J, V, ndofs(dh), ndofs(dh))
+        fill!(K.nzval, 1)
         _condense_sparsity_pattern!(K, ch.dofcoefficients, ch.dofmapping)
         fillzero!(K)
-    else
-        V = zeros(length(I))
-        K = sparse(I, J, V, ndofs(dh), ndofs(dh))
     end
+
     return K
 end
 
@@ -474,11 +472,10 @@ function reshape_to_nodes(dh::DofHandler, u::Vector{T}, fieldname::Symbol) where
     return data
 end
 
-function reshape_field_data!(data::Matrix{T}, dh::AbstractDofHandler, u::Vector{T}, field_offset::Int, field_dim::Int, cellset=Set{Int}(1:getncells(dh.grid))) where T
+function reshape_field_data!(data::Matrix{T}, dh::AbstractDofHandler, u::Vector{T}, field_offset::Int, field_dim::Int, cellset=1:getncells(dh.grid)) where T
 
-    _celldofs = Vector{Int}(undef, ndofs_per_cell(dh, first(cellset)))
-    for cell in CellIterator(dh, collect(cellset))
-        celldofs!( _celldofs, cell)
+    for cell in CellIterator(dh, cellset, UpdateFlags(; nodes=true, coords=false, dofs=true))
+        _celldofs = celldofs(cell)
         counter = 1
         for node in getnodes(cell)
             for d in 1:field_dim
