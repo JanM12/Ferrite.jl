@@ -189,6 +189,42 @@ end
         n += cellid(c)
     end
     @test n == div(getncells(grid)*(getncells(grid) + 1), 2)
+
+    # FaceCache
+    grid = generate_grid(Triangle, (3,3))
+    fc = FaceCache(grid)
+    faceindex = first(getfaceset(grid, "left"))
+    cell_id, face_id = faceindex
+    reinit!(fc, faceindex)
+    @test Ferrite.faceindex(fc) == faceindex
+    @test cellid(fc) == cell_id
+    @test Ferrite.faceid(fc) == face_id
+    @test getnodes(fc) == collect(getcells(grid, cell_id).nodes)
+    @test getcoordinates(fc) == getcoordinates(grid, cell_id)
+    @test length(celldofs(fc)) == 0 # Empty because no DofHandler given
+    
+    # FaceIterator, also tests `reinit!(fv::FaceValues, fc::FaceCache)`
+    for (dim,Shape) in ((1, Line), (2, Quadrilateral), (3, Hexahedron))
+        grid = generate_grid(Shape, ntuple(_->3, dim))
+        ip = Lagrange{dim, RefCube, 1}()
+        qr = QuadratureRule{dim-1,RefCube}(2)
+        fv = FaceScalarValues(qr, ip)
+        dh = DofHandler(grid); push!(dh, :u, dim); close!(dh)
+        faceset = getfaceset(grid, "right")
+        for dh_or_grid in (grid, dh)
+            @test first(FaceIterator(dh_or_grid, faceset)) isa FaceCache
+            area = 0.0
+            for face in FaceIterator(dh_or_grid, faceset)
+                reinit!(fv, face)
+                for q_point in 1:getnquadpoints(fv)
+                    area += getdetJdV(fv, q_point)
+                end
+            end
+            dim == 1 && @test area ≈ 1.0
+            dim == 2 && @test area ≈ 2.0
+            dim == 3 && @test area ≈ 4.0
+        end
+    end
 end
 
 @testset "Grid sets" begin
