@@ -102,9 +102,10 @@ For complete examples that use Neumann boundary conditions, please see
 - [Hyperelasticity](@ref)
 
 ### Using the `FaceIterator`
-Such a contribution can be added by iterating over the relevant face set by using the
-[`FaceIterator`](@ref)
- For a scalar field, this can be done as 
+A Neumann boundary contribution can be added by iterating over 
+the relevant `faceset::Set{FaceIndex}` by using the [`FaceIterator`](@ref)
+For a scalar field, this can be done as 
+
 ```julia
 grid = generate_grid(Quadrilateral, (3,3))
 dh = DofHandler(grid); push!(dh, :u, 1); close!(dh)

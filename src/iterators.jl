@@ -226,7 +226,7 @@ end
 """
     FaceIterator(gridordh::Union{Grid,AbstractDofHandler}, faceset::Set{FaceIndex})
 
-Iterate over the faces in `set`. 
+Iterate over the faces in `faceset`. 
 Create a `FaceIterator` to conveniently iterate over the faces in `faceset`. 
 The elements of the iterator are [`FaceCache`](@ref)s which are properly
 `reinit!`ialized. See [`FaceCache`](@ref) for more details.
@@ -253,8 +253,7 @@ end
 function FaceIterator(gridordh::Union{Grid,AbstractDofHandler}, 
                       set, flags::UpdateFlags=UpdateFlags())
     if gridordh isa MixedDofHandler
-        # TODO: Since the CellCache is resizeable this is not really necessary to check
-        #       here, but might be useful to catch slow code paths?
+        # TODO: Keep here to maintain same settings as for CellIterator
         _check_same_celltype(gridordh.grid, set)
     end
     return FaceIterator(FaceCache(gridordh, flags), set)

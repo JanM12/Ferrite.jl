@@ -204,7 +204,7 @@ end
     @test length(celldofs(fc)) == 0 # Empty because no DofHandler given
     
     # FaceIterator, also tests `reinit!(fv::FaceValues, fc::FaceCache)`
-    for (dim,Shape) in ((1, Line), (2, Quadrilateral), (3, Hexahedron))
+    for (dim, Shape) in ((1, Line), (2, Quadrilateral), (3, Hexahedron))
         grid = generate_grid(Shape, ntuple(_->3, dim))
         ip = Lagrange{dim, RefCube, 1}()
         qr = QuadratureRule{dim-1,RefCube}(2)
