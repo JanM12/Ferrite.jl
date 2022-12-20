@@ -14,7 +14,7 @@ struct Node{dim,T}
 end
 Node(x::NTuple{dim,T}) where {dim,T} = Node(Vec{dim,T}(x))
 getcoordinates(n::Node) = n.x
-
+get_coordinate_eltype(::Node{dim,T}) where {dim,T} = T
 
 abstract type AbstractCell{dim,N,M} end
 """
@@ -429,6 +429,8 @@ to a Node.
 @inline getnnodes(grid::AbstractGrid) = length(grid.nodes)
 "Returns the number of nodes of the `i`-th cell."
 @inline nnodes_per_cell(grid::AbstractGrid, i::Int=1) = nnodes(grid.cells[i])
+"Return the number type of the nodal coordinates."
+@inline get_coordinate_eltype(grid::AbstractGrid) = get_coordinate_eltype(first(getnodes(grid)))
 
 """
     getcellset(grid::AbstractGrid, setname::String)
@@ -665,27 +667,40 @@ end
 
 """
     getcoordinates!(x::Vector{Vec{dim,T}}, grid::AbstractGrid, cell::Int)
-Fills the vector `x` with the coordinates of a cell, defined by its cell id.
+    getcoordinates!(x::Vector{Vec{dim,T}}, grid::AbstractGrid, cell::AbstractCell)
+
+Fills the vector `x` with the coordinates of a cell defined by either its cellid or the cell object itself.
 """
-@inline function getcoordinates!(x::Vector{Vec{dim,T}}, grid::AbstractGrid, cell::Int) where {dim,T}
-    #@assert length(x) == N
-    @inbounds for i in 1:length(x)
-        x[i] = grid.nodes[grid.cells[cell].nodes[i]].x
-    end
+
+@inline function getcoordinates!(x::Vector{Vec{dim,T}}, grid::Ferrite.AbstractGrid, cellid::Int) where {dim,T} 
+    cell = getcells(grid, cellid)
+    getcoordinates!(x, grid, cell)
 end
+
+@inline function getcoordinates!(x::Vector{Vec{dim,T}}, grid::Ferrite.AbstractGrid, cell::Ferrite.AbstractCell) where {dim,T}
+    @inbounds for i in 1:length(x)
+        x[i] = getcoordinates(getnodes(grid, cell.nodes[i]))
+    end
+    return x
+end
+
 @inline getcoordinates!(x::Vector{Vec{dim,T}}, grid::AbstractGrid, cell::CellIndex) where {dim, T} = getcoordinates!(x, grid, cell.idx)
 @inline getcoordinates!(x::Vector{Vec{dim,T}}, grid::AbstractGrid, face::FaceIndex) where {dim, T} = getcoordinates!(x, grid, face.idx[1])
+
+# TODO: Deprecate one of `cellcoords!` and `getcoordinates!`, as they do the same thing
+cellcoords!(global_coords::Vector{Vec{dim,T}}, grid::AbstractGrid{dim}, i::Int) where {dim,T} = getcoordinates!(global_coords, grid, i) 
 
 """
     getcoordinates(grid::AbstractGrid, cell)
 Return a vector with the coordinates of the vertices of cell number `cell`.
 """
 @inline function getcoordinates(grid::AbstractGrid, cell::Int)
-    # TODO pretty ugly, worth it?
-    dim = typeof(grid.cells[cell]).parameters[1]
-    T = typeof(grid).parameters[3]
-    nodeidx = grid.cells[cell].nodes
-    return [grid.nodes[i].x for i in nodeidx]::Vector{Vec{dim,T}}
+    dim = getdim(grid)
+    T = get_coordinate_eltype(grid)
+    _cell = getcells(grid, cell)
+    N = nnodes(_cell)
+    x = Vector{Vec{dim, T}}(undef, N)
+    getcoordinates!(x, grid, _cell)
 end
 @inline getcoordinates(grid::AbstractGrid, cell::CellIndex) = getcoordinates(grid, cell.idx)
 @inline getcoordinates(grid::AbstractGrid, face::FaceIndex) = getcoordinates(grid, face.idx[1])
@@ -727,7 +742,7 @@ faces(c::Union{Quadrilateral,QuadraticQuadrilateral}) = ((c.nodes[1],c.nodes[2])
 edges(c::Line3D) = ((c.nodes[1],c.nodes[2]),)
 vertices(c::Union{Tetrahedron,QuadraticTetrahedron}) = (c.nodes[1], c.nodes[2], c.nodes[3], c.nodes[4])
 edges(c::Union{Tetrahedron,QuadraticTetrahedron}) = ((c.nodes[1],c.nodes[2]), (c.nodes[2],c.nodes[3]), (c.nodes[3],c.nodes[1]), (c.nodes[1],c.nodes[4]), (c.nodes[2],c.nodes[4]), (c.nodes[3],c.nodes[4]))
-faces(c::Union{Tetrahedron,QuadraticTetrahedron}) = ((c.nodes[1],c.nodes[2],c.nodes[3]), (c.nodes[1],c.nodes[2],c.nodes[4]), (c.nodes[2],c.nodes[3],c.nodes[4]), (c.nodes[1],c.nodes[4],c.nodes[3]))
+faces(c::Union{Tetrahedron,QuadraticTetrahedron}) = ((c.nodes[1],c.nodes[3],c.nodes[2]), (c.nodes[1],c.nodes[2],c.nodes[4]), (c.nodes[2],c.nodes[3],c.nodes[4]), (c.nodes[1],c.nodes[4],c.nodes[3]))
 vertices(c::Union{Hexahedron,Cell{3,20,6}}) = (c.nodes[1], c.nodes[2], c.nodes[3], c.nodes[4], c.nodes[5], c.nodes[6], c.nodes[7], c.nodes[8])
 edges(c::Union{Hexahedron,Cell{3,20,6}}) = ((c.nodes[1],c.nodes[2]), (c.nodes[2],c.nodes[3]), (c.nodes[3],c.nodes[4]), (c.nodes[4],c.nodes[1]), (c.nodes[5],c.nodes[6]), (c.nodes[6],c.nodes[7]), (c.nodes[7],c.nodes[8]), (c.nodes[8],c.nodes[5]), (c.nodes[1],c.nodes[5]), (c.nodes[2],c.nodes[6]), (c.nodes[3],c.nodes[7]), (c.nodes[4],c.nodes[8]))
 faces(c::Union{Hexahedron,Cell{3,20,6}}) = ((c.nodes[1],c.nodes[4],c.nodes[3],c.nodes[2]), (c.nodes[1],c.nodes[2],c.nodes[6],c.nodes[5]), (c.nodes[2],c.nodes[3],c.nodes[7],c.nodes[6]), (c.nodes[3],c.nodes[4],c.nodes[8],c.nodes[7]), (c.nodes[1],c.nodes[5],c.nodes[8],c.nodes[4]), (c.nodes[5],c.nodes[6],c.nodes[7],c.nodes[8]))

@@ -1,15 +1,18 @@
-using Documenter, Ferrite, Pkg, TimerOutputs
+using TimerOutputs
 
 dto = TimerOutput()
 reset_timer!(dto)
 
-if "revise" in ARGS
+const liveserver = "liveserver" in ARGS
+
+if liveserver
     using Revise
     @timeit dto "Revise.revise()" Revise.revise()
 end
 
+using Documenter, Ferrite, FerriteGmsh, FerriteMeshParser
+
 const is_ci = haskey(ENV, "GITHUB_ACTIONS")
-const is_draft = "draft" in ARGS
 
 # Generate examples
 include("generate.jl")
@@ -28,6 +31,7 @@ GENERATEDEXAMPLES = [joinpath("examples", f) for f in (
     "quasi_incompressible_hyperelasticity.md",
     "ns_vs_diffeq.md",
     "computational_homogenization.md",
+    "stokes-flow.md",
     )]
 
 # Build documentation.
@@ -39,7 +43,7 @@ GENERATEDEXAMPLES = [joinpath("examples", f) for f in (
     doctest = false,
     # strict = VERSION.minor == 6 && sizeof(Int) == 8, # only strict mode on 0.6 and Int64
     strict = false,
-    draft = is_draft,
+    draft = liveserver,
     pages = Any[
         "Home" => "index.md",
         "manual/fe_intro.md",
@@ -60,7 +64,8 @@ GENERATEDEXAMPLES = [joinpath("examples", f) for f in (
             "reference/assembly.md",
             "reference/boundary_conditions.md",
             "reference/grid.md",
-            "reference/export.md"
+            "reference/export.md",
+            "reference/utils.md",
             ]
         ],
 )
@@ -72,7 +77,7 @@ end
 
 
 # Deploy built documentation
-if !is_draft
+if !liveserver
     @timeit dto "deploydocs" deploydocs(
         repo = "github.com/Ferrite-FEM/Ferrite.jl.git",
         push_preview=true,
