@@ -95,10 +95,36 @@ end
 
 
 ## Neumann Boundary Conditions
-
 At the Neumann part of the boundary we know something about the gradient of the solution.
+Two different methods for applying these are described below.  
+For complete examples that use Neumann boundary conditions, please see
+- [von-Mises-plasticity](@ref)
+- [Hyperelasticity](@ref)
 
-As an example, the following code snippet can be included in the element routine,
+### Using the `FaceIterator`
+Such a contribution can be added by iterating over the relevant face set by using the
+[`FaceIterator`](@ref)
+ For a scalar field, this can be done as 
+```julia
+grid = generate_grid(Quadrilateral, (3,3))
+dh = DofHandler(grid); push!(dh, :u, 1); close!(dh)
+fv = FaceScalarValues(QuadratureRule{1,RefCube}(2), Lagrange{2,RefCube,1}())
+fe = zeros(ndofs(dh))
+qn = 1.0    # Normal flux
+for face in FaceIterator(dh, getfaceset(grid, "right"))
+    reinit!(fv, face)
+    for q_point in 1:getnquadpoints(fv)
+        dΓ = getdetJdV(fv, q_point)
+        for i in 1:getnbasefunctions(fv)
+            δu = shape_value(fv, q_point, i)
+            fe[i] += δu * qn * dΓ
+        end
+    end
+end
+```
+
+### In the element routine
+Alternatively, the following code snippet can be included in the element routine,
 to evaluate the boundary integral:
 
 ```julia
@@ -109,7 +135,7 @@ for face in 1:nfaces(cell)
             dΓ = getdetJdV(facevalues, q_point)
             for i in 1:getnbasefunctions(facevalues)
                 δu = shape_value(facevalues, q_point, i)
-                fe[i] += δu * b * dΓ
+                fe[i] += δu * qn * dΓ
             end
         end
     end
@@ -124,9 +150,6 @@ reinitialize `facevalues` for this face, using [`reinit!`](@ref). When `reinit!`
 Next we simply loop over the quadrature points of the face, and then loop over
 all the test functions and assemble the contribution to the force vector.
 
-!!! note "Examples"
-    The following commented examples makes use of Neumann boundary conditions:
-    - TODO
 
 ## Periodic boundary conditions
 
