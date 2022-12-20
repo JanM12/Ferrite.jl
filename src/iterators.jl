@@ -140,14 +140,14 @@ See also [`FaceIterator`](@ref).
 """
 struct FaceCache{CC<:CellCache}
     cc::CC  # const for julia>1.8 
-    current_facenr::ScalarWrapper{Int} 
+    current_faceid::ScalarWrapper{Int} 
 end
 FaceCache(args...) = FaceCache(CellCache(args...), ScalarWrapper(0))
 
 function reinit!(fc::FaceCache, face::FaceIndex)
-    cellnr, facenr = face
-    reinit!(fc.cc, cellnr)
-    fc.current_facenr[] = facenr
+    cellid, faceid = face
+    reinit!(fc.cc, cellid)
+    fc.current_faceid[] = faceid
     return nothing
 end
 
@@ -245,9 +245,9 @@ for faceindex in faceset
     # ...
 end
 """
-struct FaceIterator{FC<:FaceCache, IC<:Set{FaceIndex}}
+struct FaceIterator{FC<:FaceCache}
     fc::FC
-    set::F
+    set::Set{FaceIndex}
 end
 
 function FaceIterator(gridordh::Union{Grid,AbstractDofHandler}, 
@@ -261,7 +261,7 @@ function FaceIterator(gridordh::Union{Grid,AbstractDofHandler},
 end
 
 @inline _getcache(fi::FaceIterator) = fi.fc
-@inline _getset(fi::FaceIterator) = fi.fc
+@inline _getset(fi::FaceIterator) = fi.set
 
 # Iterator interface
 const GridIterators{C} = Union{CellIterator{C},FaceIterator{C}}
@@ -274,10 +274,10 @@ function Base.iterate(iterator::GridIterators, state_in...)
     reinit!(cache, cellid)
     return (cache, state_out)
 end
-Base.IteratorSize(::Type{<:GridIterator}) = Base.HasLength()
-Base.IteratorEltype(::Type{<:GridIterator}) = Base.HasEltype()
-Base.eltype(::Type{<:GridIterator{C}}) where C = C
-Base.length(iterator::GridIterator) = length(_getset(iterator))
+Base.IteratorSize(::Type{<:GridIterators}) = Base.HasLength()
+Base.IteratorEltype(::Type{<:GridIterators}) = Base.HasEltype()
+Base.eltype(::Type{<:GridIterators{C}}) where C = C
+Base.length(iterator::GridIterators) = length(_getset(iterator))
 
 
 function _check_same_celltype(grid::AbstractGrid, cellset::IntegerCollection)

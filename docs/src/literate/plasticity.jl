@@ -237,7 +237,7 @@ end;
 function assemble_neumann!(r, dh, faceset, facevalues, t)
     n_basefuncs = getnbasefunctions(facevalues)     
     re = zeros(n_basefuncs)                      # element residual vector
-    for face in Ferrite.BoundaryFaceIterator(dh, faceset)
+    for face in FaceIterator(dh, faceset)
         ## Add traction as a negative contribution to the element residual `re`:
         reinit!(facevalues, face)
         fill!(re, 0)
