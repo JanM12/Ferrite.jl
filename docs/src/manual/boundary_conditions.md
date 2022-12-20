@@ -109,15 +109,16 @@ Such a contribution can be added by iterating over the relevant face set by usin
 grid = generate_grid(Quadrilateral, (3,3))
 dh = DofHandler(grid); push!(dh, :u, 1); close!(dh)
 fv = FaceScalarValues(QuadratureRule{1,RefCube}(2), Lagrange{2,RefCube,1}())
-fe = zeros(ndofs(dh))
+f = zeros(ndofs(dh))
 qn = 1.0    # Normal flux
 for face in FaceIterator(dh, getfaceset(grid, "right"))
     reinit!(fv, face)
+    dofs = celldofs(face)
     for q_point in 1:getnquadpoints(fv)
         dΓ = getdetJdV(fv, q_point)
         for i in 1:getnbasefunctions(fv)
             δu = shape_value(fv, q_point, i)
-            fe[i] += δu * qn * dΓ
+            f[dofs[i]] += δu * qn * dΓ
         end
     end
 end
