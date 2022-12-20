@@ -33,8 +33,10 @@ Ferrite.getfieldnames(::MixedDofHandler)
 Ferrite.getfielddim(::MixedDofHandler, ::Symbol)
 ```
 
-# CellIterator
+# Grid iterators
 ```@docs
 CellCache
 CellIterator
+FaceCache
+FaceIterator
 ```
