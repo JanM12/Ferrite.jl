@@ -297,13 +297,13 @@ function solve()
 
     ## Newton-Raphson loop
     NEWTON_TOL = 1 # 1 N
-    #print("\n Starting Netwon iterations:\n")
+    print("\n Starting Netwon iterations:\n")
 
     for timestep in 1:n_timesteps
         t = timestep # actual time (used for evaluating d-bndc)
         traction = Vec((0.0, 0.0, traction_magnitude[timestep]))
         newton_itr = -1
-        #print("\n Time step @time = $timestep:\n")
+        print("\n Time step @time = $timestep:\n")
         update!(dbcs, t) # evaluates the D-bndc at time t
         apply!(u, dbcs)  # set the prescribed values in the solution vector
 
@@ -317,7 +317,7 @@ function solve()
             assemble_neumann!(r, dh, getfaceset(grid, "right"), facevalues, traction)
             norm_r = norm(r[Ferrite.free_dofs(dbcs)])
 
-            #print("Iteration: $newton_itr \tresidual: $(@sprintf("%.8f", norm_r))\n")
+            print("Iteration: $newton_itr \tresidual: $(@sprintf("%.8f", norm_r))\n")
             if norm_r < NEWTON_TOL
                 break
             end
@@ -330,7 +330,7 @@ function solve()
         ## Update the old states with the converged values for next timestep
         states_old .= states
 
-        u_max[timestep] = maximum(abs.(u)) # maximum displacement in current timestep
+        u_max[timestep] = maximum(abs, u) # maximum displacement in current timestep
     end
 
     ## ## Postprocessing
