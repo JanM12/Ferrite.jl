@@ -225,6 +225,15 @@ end
             dim == 3 && @test area ≈ 4.0
         end
     end
+    # Unit test of some utilities
+    mixed_grid = get_2d_grid()  # From "test_mixeddofhandler.jl"
+    cellset = Set(1:getncells(mixed_grid))
+    faceset = Set(FaceIndex(i, 1) for i in 1:getncells(mixed_grid))
+    @test_throws ErrorException Ferrite._check_same_celltype(mixed_grid, cellset)
+    @test_throws ErrorException Ferrite._check_same_celltype(mixed_grid, faceset)
+    std_grid = generate_grid(Quadrilateral, (getncells(mixed_grid),1))
+    @test isa(Ferrite._check_same_celltype(std_grid, cellset), Nothing)
+    @test isa(Ferrite._check_same_celltype(std_grid, faceset), Nothing)
 end
 
 @testset "Grid sets" begin

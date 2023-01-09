@@ -287,8 +287,9 @@ function _check_same_celltype(grid::AbstractGrid, cellset::IntegerCollection)
 end
 
 function _check_same_celltype(grid::AbstractGrid, faceset::Set{FaceIndex})
-    celltype = typeof(grid.cells[first(first(cellset))])
-    if !all(typeof(grid.cells[first(face)]) == celltype for face in faceset)
-        error("The cells in the cellset are not all of the same celltype.")
+    isconcretetype(getcelltype(grid)) && return nothing # Short circuit check
+    celltype = getcelltype(grid, first(faceset)[1])
+    if !all(getcelltype(grid, face[1])==celltype for face in faceset)
+        error("The cells in the faceset are not all of the same celltype.")
     end
 end
