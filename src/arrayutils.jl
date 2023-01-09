@@ -9,6 +9,7 @@ end
 
 """
     addindex!(A::AbstractMatrix{T}, v::T, i::Int, j::Int)
+    addindex!(b::AbstractVector{T}, v::T, i::Int)
 
 Equivalent to `A[i, j] += v` but more efficient.
 
@@ -18,8 +19,28 @@ This method avoids the double lookup.
 
 Zeros are ignored (i.e. if `iszero(v)`) by returning early. If the index `(i, j)` is not
 existing in the sparsity pattern of `A` this method throws a `SparsityError`.
+
+Fallback: `A[i, j] += v`.
 """
-addindex!(A, v, i, j)
+addindex!
+
+function addindex!(A::AbstractMatrix{T}, v, i::Integer, j::Integer) where T
+    return addindex!(A, T(v), Int(i), Int(j))
+end
+function addindex!(A::AbstractMatrix{T}, v::T, i::Int, j::Int) where T
+    iszero(v) && return A
+    A[i, j] += v
+    return A
+end
+
+function addindex!(b::AbstractVector{T}, v, i::Integer) where T
+    return addindex!(b, T(v), Int(i))
+end
+function addindex!(b::AbstractVector{T}, v::T, i::Int) where T
+    iszero(v) && return b
+    b[i] += v
+    return b
+end
 
 """
     fillzero!(A::AbstractVecOrMat{T})
@@ -38,9 +59,6 @@ end
 ## SparseArrays.SparseMatrixCSC ##
 ##################################
 
-function addindex!(A::SparseMatrixCSC{Tv}, v, i::Integer, j::Integer) where Tv
-    return addindex!(A, Tv(v), Int(i), Int(j))
-end
 function addindex!(A::SparseMatrixCSC{Tv}, v::Tv, i::Int, j::Int) where Tv
     @boundscheck checkbounds(A, i, j)
     # Return early if v is 0

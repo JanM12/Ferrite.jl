@@ -3,7 +3,7 @@
     Dirichlet(u::Symbol, ∂Ω::Set, f::Function, components=nothing)
 
 Create a Dirichlet boundary condition on `u` on the `∂Ω` part of
-the boundary. `f` is a function that takes two arguments, `x` and `t`
+the boundary. `f` is a function of the form `f(x)` or `f(x, t)`
 where `x` is the spatial coordinate and `t` is the current time,
 and returns the prescribed value. `components` specify the components
 of `u` that are prescribed by this condition. By default all components
@@ -22,7 +22,7 @@ Dirichlet condition for the `:u` field, on the faceset called
 dbc = Dirichlet(:s, ∂Ω, (x, t) -> sin(t))
 
 # Prescribe all components of vector field :v on ∂Ω to 0
-dbc = Dirichlet(:v, ∂Ω, (x, t) -> 0 * x)
+dbc = Dirichlet(:v, ∂Ω, x -> 0 * x)
 
 # Prescribe component 2 and 3 of vector field :v on ∂Ω to [sin(t), cos(t)]
 dbc = Dirichlet(:v, ∂Ω, (x, t) -> [sin(t), cos(t)], [2, 3])
@@ -32,7 +32,7 @@ dbc = Dirichlet(:v, ∂Ω, (x, t) -> [sin(t), cos(t)], [2, 3])
 which applies the condition via [`apply!`](@ref) and/or [`apply_zero!`](@ref).
 """
 struct Dirichlet # <: Constraint
-    f::Function # f(x,t) -> value
+    f::Function # f(x) or f(x,t) -> value(s)
     faces::Union{Set{Int},Set{FaceIndex},Set{EdgeIndex},Set{VertexIndex}}
     field_name::Symbol
     components::Vector{Int} # components of the field
@@ -222,6 +222,12 @@ function close!(ch::ConstraintHandler)
     end
 
     ch.closed[] = true
+
+    # Compute the prescribed values by calling update!: This should be cheap, and for the
+    # common case where constraints does not depend on time it is annoying and easy to
+    # forget to call this on the outside.
+    update!(ch)
+
     return ch
 end
 
@@ -392,13 +398,25 @@ function _add!(ch::ConstraintHandler, dbc::Dirichlet, bcnodes::Set{Int}, interpo
     return ch
 end
 
-# Updates the DBC's to the current time `time`
+"""
+    update!(ch::ConstraintHandler, time::Real=0.0)
+
+Update time-dependent inhomogeneities for the new time. This calls `f(x)` or `f(x, t)` when
+applicable, where `f` is the function(s) corresponding to the constraints in the handler, to
+compute the inhomogeneities.
+
+Note that this is called implicitly in `close!(::ConstraintHandler)`.
+"""
 function update!(ch::ConstraintHandler, time::Real=0.0)
     @assert ch.closed[]
-    for (i,dbc) in enumerate(ch.dbcs)
+    for (i, dbc) in pairs(ch.dbcs)
+        # If the BC function only accept one argument, i.e. f(x), we create a wrapper
+        # g(x, t) = f(x) that discards the second parameter so that _update! can always call
+        # the function with two arguments internally.
+        wrapper_f = hasmethod(dbc.f, Tuple{Any,Any}) ? dbc.f : (x, _) -> dbc.f(x)
         # Function barrier
-        _update!(ch.inhomogeneities, dbc.f, dbc.faces, dbc.field_name, dbc.local_face_dofs, dbc.local_face_dofs_offset,
-                 dbc.components, ch.dh, ch.bcvalues[i], ch.dofmapping, ch.dofcoefficients, convert(Float64, time))
+        _update!(ch.inhomogeneities, wrapper_f, dbc.faces, dbc.field_name, dbc.local_face_dofs, dbc.local_face_dofs_offset,
+                 dbc.components, ch.dh, ch.bcvalues[i], ch.dofmapping, ch.dofcoefficients, time)
     end
     # Compute effective inhomogeneity for affine constraints with prescribed dofs in the
     # RHS. For example, in u2 = w3 * u3 + w4 * u4 + b2 we allow e.g. u3 to be prescribed by
@@ -425,7 +443,7 @@ end
 # for faces
 function _update!(inhomogeneities::Vector{Float64}, f::Function, faces::Set{<:BoundaryIndex}, field::Symbol, local_face_dofs::Vector{Int}, local_face_dofs_offset::Vector{Int},
                   components::Vector{Int}, dh::AbstractDofHandler, facevalues::BCValues,
-                  dofmapping::Dict{Int,Int}, dofcoefficients::Vector{Union{Nothing,DofCoefficients{T}}}, time::T) where {T}
+                  dofmapping::Dict{Int,Int}, dofcoefficients::Vector{Union{Nothing,DofCoefficients{T}}}, time::Real) where {T}
 
     cc = CellCache(dh, UpdateFlags(; nodes=false, coords=true, dofs=true))
     for (cellidx, faceidx) in faces
@@ -463,7 +481,7 @@ end
 # for nodes
 function _update!(inhomogeneities::Vector{Float64}, f::Function, nodes::Set{Int}, field::Symbol, nodeidxs::Vector{Int}, globaldofs::Vector{Int},
                   components::Vector{Int}, dh::AbstractDofHandler, facevalues::BCValues,
-                  dofmapping::Dict{Int,Int}, dofcoefficients::Vector{Union{Nothing,DofCoefficients{T}}}, time::T) where T
+                  dofmapping::Dict{Int,Int}, dofcoefficients::Vector{Union{Nothing,DofCoefficients{T}}}, time::Real) where T
     counter = 1
     for (idx, nodenumber) in enumerate(nodeidxs)
         x = dh.grid.nodes[nodenumber].x
@@ -660,7 +678,7 @@ end
 end
 
 # Similar to Ferrite._condense!(K, ch), but only add the non-zero entries to K (that arises from the condensation process)
-function _condense_sparsity_pattern!(K::SparseMatrixCSC{T}, dofcoefficients::Vector{Union{Nothing,DofCoefficients{T}}}, dofmapping::Dict{Int,Int}) where T
+function _condense_sparsity_pattern!(K::SparseMatrixCSC{T}, dofcoefficients::Vector{Union{Nothing,DofCoefficients{T}}}, dofmapping::Dict{Int,Int}, keep_constrained::Bool) where T
     ndofs = size(K, 1)
 
     # Return early if there are no non-trivial affine constraints
@@ -676,6 +694,7 @@ function _condense_sparsity_pattern!(K::SparseMatrixCSC{T}, dofcoefficients::Vec
     for col in 1:ndofs
         col_coeffs = coefficients_for_dof(dofmapping, dofcoefficients, col)
         if col_coeffs === nothing
+            !keep_constrained && haskey(dofmapping, col) && continue
             for ri in nzrange(K, col)
                 row = K.rowval[ri]
                 row_coeffs = coefficients_for_dof(dofmapping, dofcoefficients, row)
@@ -690,14 +709,19 @@ function _condense_sparsity_pattern!(K::SparseMatrixCSC{T}, dofcoefficients::Vec
                 row = K.rowval[ri]
                 row_coeffs = coefficients_for_dof(dofmapping, dofcoefficients, row)
                 if row_coeffs === nothing
+                    !keep_constrained && haskey(dofmapping, row) && continue
                     for (d, _) in col_coeffs
                         cnt += 1
                         _add_or_grow(cnt, I, J, row, d)
                     end
                 else
-                    for (d1, _) in col_coeffs, (d2, _) in row_coeffs
-                        cnt += 1
-                        _add_or_grow(cnt, I, J, d1, d2)
+                    for (d1, _) in col_coeffs
+                        !keep_constrained && haskey(dofmapping, d1) && continue
+                        for (d2, _) in row_coeffs
+                            !keep_constrained && haskey(dofmapping, d2) && continue
+                            cnt += 1
+                            _add_or_grow(cnt, I, J, d1, d2)
+                        end
                     end
                 end
             end
@@ -849,8 +873,35 @@ end
 
 
 #Function for adding constraint when using multiple celltypes
-function add!(ch::ConstraintHandler, fh::FieldHandler, dbc::Dirichlet)
-    _check_cellset_dirichlet(ch.dh.grid, fh.cellset, dbc.faces)
+function add!(ch::ConstraintHandler{<:MixedDofHandler}, dbc::Dirichlet)
+    dbc_added = false
+    for fh in ch.dh.fieldhandlers
+        if overlaps(fh, dbc)
+            # Recreating the `dbc` will create a copy of `dbc.faces`. 
+            # If `dbc` have dofs not in `fh`, these will be removed from `dbc`, 
+            # thus the need to copy `dbc.faces`.
+            # In this case, add! will warn, unless warn_check_cellset=false
+            dbc_ = Dirichlet(dbc.field_name, dbc.faces, dbc.f, 
+                isempty(dbc.components) ? nothing : dbc.components) 
+                # Check for empty already done when user created `dbc`
+            add!(ch, fh, dbc_, warn_check_cellset=false)
+            dbc_added = true
+        end
+    end
+    dbc_added || @warn("No overlap between dbc::Dirichlet and fields in the ConstraintHandler's MixedDofHandler")
+    return ch
+end
+
+function overlaps(fh::FieldHandler, dbc::Dirichlet)
+    dbc.field_name in getfieldnames(fh) || return false # Must contain the correct field
+    for (cellid, _) in dbc.faces
+        cellid in fh.cellset && return true
+    end
+    return false
+end
+
+function add!(ch::ConstraintHandler, fh::FieldHandler, dbc::Dirichlet; warn_check_cellset=true)
+    warn_check_cellset && _check_cellset_dirichlet(ch.dh.grid, fh.cellset, dbc.faces)
 
     celltype = getcelltype(ch.dh.grid, first(fh.cellset)) #Assume same celltype of all cells in fh.cellset
 
@@ -899,10 +950,14 @@ function _check_cellset_dirichlet(grid::AbstractGrid, cellset::Set{Int}, nodeset
     end
 end
 
-create_symmetric_sparsity_pattern(dh::AbstractDofHandler, ch::ConstraintHandler; coupling=nothing) =
-    Symmetric(_create_sparsity_pattern(dh, ch, true, coupling), :U)
-create_sparsity_pattern(dh::AbstractDofHandler, ch::ConstraintHandler; coupling=nothing) =
-    _create_sparsity_pattern(dh, ch, false, coupling)
+function create_symmetric_sparsity_pattern(dh::AbstractDofHandler, ch::ConstraintHandler;
+        keep_constrained::Bool=true, coupling=nothing)
+    return Symmetric(_create_sparsity_pattern(dh, ch, true, keep_constrained, coupling), :U)
+end
+function create_sparsity_pattern(dh::AbstractDofHandler, ch::ConstraintHandler;
+        keep_constrained::Bool=true, coupling=nothing)
+    return _create_sparsity_pattern(dh, ch, false, keep_constrained, coupling)
+end
 
 struct PeriodicFacePair
     mirror::FaceIndex
@@ -1767,7 +1822,7 @@ function _condense_local!(local_matrix::AbstractMatrix, local_vector::AbstractVe
                 local_mcol = findfirst(==(global_mcol), global_dofs)
                 if local_mcol === nothing
                     has_global_arrays || missing_global()
-                    global_vector[global_mcol] += vw
+                    addindex!(global_vector, vw, global_mcol)
                 else
                     local_vector[local_mcol] += vw
                 end
