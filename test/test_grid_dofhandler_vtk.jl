@@ -226,7 +226,8 @@ end
         end
     end
     # Unit test of some utilities
-    mixed_grid = get_2d_grid()  # From "test_mixeddofhandler.jl"
+    mixed_grid = Grid([Quadrilateral((1, 2, 3, 4)),Triangle((3, 2, 5))],
+                      [Node(coord) for coord in zeros(Vec{2,Float64}, 5)])
     cellset = Set(1:getncells(mixed_grid))
     faceset = Set(FaceIndex(i, 1) for i in 1:getncells(mixed_grid))
     @test_throws ErrorException Ferrite._check_same_celltype(mixed_grid, cellset)
