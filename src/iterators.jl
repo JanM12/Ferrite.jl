@@ -253,7 +253,7 @@ end
 function FaceIterator(gridordh::Union{Grid,AbstractDofHandler}, 
                       set, flags::UpdateFlags=UpdateFlags())
     if gridordh isa MixedDofHandler
-        # TODO: Keep here to maintain same settings as for CellIterator
+        # Keep here to maintain same settings as for CellIterator
         _check_same_celltype(gridordh.grid, set)
     end
     return FaceIterator(FaceCache(gridordh, flags), set)
@@ -289,7 +289,7 @@ end
 function _check_same_celltype(grid::AbstractGrid, faceset::Set{FaceIndex})
     isconcretetype(getcelltype(grid)) && return nothing # Short circuit check
     celltype = getcelltype(grid, first(faceset)[1])
-    if !all(getcelltype(grid, face[1])==celltype for face in faceset)
+    if !all(getcelltype(grid, face[1]) == celltype for face in faceset)
         error("The cells in the faceset are not all of the same celltype.")
     end
 end
