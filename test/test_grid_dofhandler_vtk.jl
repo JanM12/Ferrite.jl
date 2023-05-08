@@ -498,7 +498,7 @@ end
 end
 
 @testset "vectorization layer compat" begin
-    struct VectorLagrangeTest{dim,shape,order,vdim} <: Ferrite.Interpolation{dim,shape,order} end
+    struct VectorLagrangeTest{dim,shape,order,vdim} <: Ferrite.ScalarInterpolation{dim,shape,order} end
 
     @testset "1d" begin
         grid = generate_grid(Line, (2,))

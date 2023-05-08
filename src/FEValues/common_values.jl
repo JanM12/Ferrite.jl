@@ -8,7 +8,8 @@ struct ScalarValued <: FieldTrait end
 
 FieldTrait(::Type{<:CellScalarValues}) = ScalarValued()
 FieldTrait(::Type{<:FaceScalarValues}) = ScalarValued()
-FieldTrait(::Type{<:PointScalarValuesInternal}) = ScalarValued()
+FieldTrait(::Type{<:PointValuesInternal{<:Any,<:Any,<:Any,<:Number}}) = ScalarValued()
+FieldTrait(::Type{<:PointValuesInternal{<:Any,<:Any,<:Any,<:Vec}}) = VectorValued()
 FieldTrait(::Type{<:PointScalarValues}) = ScalarValued()
 FieldTrait(::Type{<:PointVectorValues}) = VectorValued()
 FieldTrait(::Type{<:CellVectorValues}) = VectorValued()
