@@ -36,7 +36,8 @@ const RefCube = RefHexahedron
 Abstract type which has `CellValues` and `FaceValues` as subtypes
 """
 abstract type Values{dim,T,refshape} end
-abstract type CellValues{dim,T,refshape} <: Values{dim,T,refshape} end
+abstract type FEValues end
+# abstract type CellValues{dim,T,refshape} <: Values{dim,T,refshape} end
 abstract type FaceValues{dim,T,refshape} <: Values{dim,T,refshape} end
 
 """
@@ -86,7 +87,7 @@ include("Quadrature/quadrature.jl")
 # FEValues
 include("FEValues/cell_values.jl")
 include("FEValues/face_values.jl")
-include("PointEval/point_values.jl")
+# include("PointEval/point_values.jl")
 include("FEValues/common_values.jl")
 include("FEValues/face_integrals.jl")
 
